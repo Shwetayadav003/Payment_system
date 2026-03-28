@@ -1,0 +1,35 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+venv/
+__pycache__/
+*.pyc
+*.db
+.env
+*.mp4
+.DS_Store
+Thumbs.db
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables (contains Stripe keys!)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db* . m p 4 
+ 
+ 
