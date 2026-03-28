@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 24px;
+        }
+        
+        .header a {
+            color: #667eea;
+            text-decoration: none;
+            margin-left: 20px;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+        
+        .header a:hover {
+            background: #f0f0f0;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .btn-logout {
+            background: #dc3545;
+        }
+        
+        .btn-logout:hover {
+            background: #c82333;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 12px;
+        }
+        
+        .status-succeeded {
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 12px;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .user-details {
+            margin: 10px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Payment Dashboard</h1>
+            <div>
+                <a href="/checkout">Make Payment</a>
+                <a href="#" onclick="logout()" style="background: #dc3545; color: white;">Logout</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>👋 Welcome, <span id="username"></span>!</h2>
+            <div class="user-details" id="user-info"></div>
+            <a href="/checkout" class="btn">💳 Make a Payment</a>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Payment History</h2>
+            <div id="payment-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (!token) {
+            window.location.href = '/login-page';
+        }
+        
+        document.getElementById('username').innerText = user.username || 'User';
+        document.getElementById('user-info').innerHTML = `
+            📧 ${user.email || 'No email'} &nbsp;|&nbsp; 🆔 ID: ${user.id || 'N/A'}
+        `;
+        
+        async function loadPayments() {
+            try {
+                const res = await fetch('/my-payments', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const payments = await res.json();
+                const container = document.getElementById('payment-list');
+                
+                if (!payments || payments.length === 0) {
+                    container.innerHTML = '<div class="empty">No payments yet. Make your first payment!</div>';
+                    return;
+                }
+                
+                let html = '<table><thead><tr><th>ID</th><th>Amount</th><th>Currency</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+                
+                for (let i = 0; i < payments.length; i++) {
+                    const p = payments[i];
+                    const date = new Date(p.created_at).toLocaleString();
+                    let statusClass = p.status === 'succeeded' ? 'status-succeeded' : 'status-pending';
+                    let statusText = p.status === 'succeeded' ? '✅ Success' : '⏳ Pending';
+                    
+                    html += `<tr>
+                        <td>${p.id}</td>
+                        <td><strong>$${p.amount}</strong></td>
+                        <td>${p.currency.toUpperCase()}</td>
+                        <td><span class="${statusClass}">${statusText}</span></td>
+                        <td>${date}</td>
+                    </tr>`;
+                }
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('payment-list').innerHTML = '<div class="empty">Error loading payments</div>';
+            }
+        }
+        
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/login-page';
+        }
+        
+        loadPayments();
+    </script>
+</body>
+</html>

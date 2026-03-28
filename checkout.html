@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment System - Checkout</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .card-element {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            background: white;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+        }
+        
+        .user-status {
+            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .user-status.logged-in {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .user-status.logged-out {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .user-status a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .user-status a:hover {
+            text-decoration: underline;
+        }
+        
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .navbar a {
+            color: #667eea;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <h1>💳 Payment System</h1>
+            <div>
+                <a href="/dashboard-test">Dashboard</a>
+                <a href="/login-page">Login</a>
+                <a href="/register-page">Register</a>
+            </div>
+        </div>
+        
+        <div id="user-status" class="user-status"></div>
+        
+        <p class="subtitle">Secure checkout powered by Stripe</p>
+        
+        <form id="payment-form">
+            <div class="form-group">
+                <label for="amount">Amount (USD)</label>
+                <input type="number" id="amount" name="amount" step="0.01" min="0.50" value="25.00" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Card Details</label>
+                <div id="card-element" class="card-element"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="postal-code">Postal / ZIP Code</label>
+                <input type="text" id="postal-code" name="postal-code" placeholder="e.g., 12345" required>
+            </div>            
+            
+            <button type="submit" id="submit-button">Pay Now</button>
+        </form>
+        
+        <div id="message" class="message"></div>
+        <div id="loading" class="loading">Processing payment...</div>
+    </div>
+
+    <script>
+        // Get Stripe publishable key from server
+        const stripe = Stripe('pk_test_51TEZHXQcrOtfSPcnqMUQUurUQAghtvsd1SRVGxTbZoY3Gl1NXgzsIffHDDevKvJqcPpcq3y9rqm6zBCCg43rNdIZ00Nbf6YymP');
+        
+        // Check if user is logged in
+        const token = localStorage.getItem('access_token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Display user status
+        const statusDiv = document.getElementById('user-status');
+        if (user.username) {
+            statusDiv.innerHTML = `✅ Logged in as: <strong>${user.username}</strong> (Payment will be linked to your account)`;
+            statusDiv.className = 'user-status logged-in';
+        } else {
+            statusDiv.innerHTML = `⚠️ Not logged in. <a href="/login-page">Login</a> to save payment history.`;
+            statusDiv.className = 'user-status logged-out';
+        }
+        
+        const elements = stripe.elements();
+        const cardElement = elements.create('card', {
+            style: {
+                base: {
+                    fontSize: '16px',
+                    color: '#32325d',
+                    '::placeholder': {
+                        color: '#aab7c4'
+                    }
+                }
+            }
+        });
+        
+        cardElement.mount('#card-element');
+        
+        const form = document.getElementById('payment-form');
+        const submitButton = document.getElementById('submit-button');
+        const messageDiv = document.getElementById('message');
+        const loadingDiv = document.getElementById('loading');
+        
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            submitButton.disabled = true;
+            loadingDiv.style.display = 'block';
+            messageDiv.style.display = 'none';
+            
+            const amount = document.getElementById('amount').value;
+            const postalCode = document.getElementById('postal-code').value;
+            
+            // Get user ID if logged in
+            const userId = user.id || null;
+            
+            try {
+                const response = await fetch('/create-payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        amount: parseFloat(amount),
+                        user_id: userId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+                
+                const { error, paymentIntent } = await stripe.confirmCardPayment(
+                    data.client_secret,
+                    {
+                        payment_method: {
+                            card: cardElement,
+                            billing_details: {
+                                address: {
+                                    postal_code: postalCode
+                                }
+                            }
+                        }
+                    }
+                );
+                
+                if (error) {
+                    throw new Error(error.message);
+                }
+                
+                // Payment successful
+                messageDiv.className = 'message success';
+                messageDiv.innerHTML = `
+                    <strong>✅ Payment successful!</strong><br>
+                    Amount: $${amount}<br>
+                    Payment ID: ${paymentIntent.id}<br>
+                    ${user.username ? `Linked to: ${user.username}` : 'Not linked to any account'}
+                `;
+                messageDiv.style.display = 'block';
+                
+                // Clear form
+                document.getElementById('amount').value = '25.00';
+                document.getElementById('postal-code').value = '';
+                cardElement.clear();
+                
+                // Redirect to dashboard after 3 seconds if logged in
+                if (user.username) {
+                    setTimeout(() => {
+                        window.location.href = '/dashboard-test';
+                    }, 3000);
+                }
+                
+            } catch (error) {
+                messageDiv.className = 'message error';
+                messageDiv.innerHTML = `<strong>❌ Error</strong><br>${error.message}`;
+                messageDiv.style.display = 'block';
+            } finally {
+                submitButton.disabled = false;
+                loadingDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
